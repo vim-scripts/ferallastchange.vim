@@ -1,0 +1,41 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=680
+
+Update the last modification time of the file if an appropriate string is found in the first 20 lines of the file.
+
+This is a fork of lastchange.vim and is based On Srinath Avadhanula's <email in file> work in lastchange.vim (v1.0 dated Sat Mar 30 04:00 PM 2002 PST; VIMSCRIPT #259)
+
+
+Changes: From lastchange.vim v1.0
+
+This is now an almost proper vim60 plugin.
+
+Time stamp can be defined by setting g:flastchangetimeformat to the desired string for strftime().
+
+Example: (from my .vimrc)
+" [Feral:166/03@13:11] How I like ferallastchange.vim setup
+let g:flastchangeleader = '\\date\t\t'
+" Condense `Pacific Daylight Time` into `PDT` and tack that onto the end of our
+"	time stamp format string
+let g:flastchangetimeformat = '%a, %d %b %Y %H:%M '.substitute(strftime('%Z'), '\<\(\w\)\(\w*\)\>\(\W\|$\)', '\1', 'g')
+
+NOTE how format %Z is special cased and replaced with a shortened string. I.e. `Pacific Daylight Time` becomes `PDT`. This is also done in the default time format string.
+
+Slightly more robust checking to see if we should operate; to speed up writing when we have nothing to do or can't do anything, etc.;
+
+
+Simplified and fixed, (then removed altogether) RemoveLastHistoryItem(); (could muck up search pattern)
+
+Remed out :MOD and :NOMOD commands; I have never used them; Just unrem if wanted...
+
+:sub method remed; Currently uses a setline, hopefully more efficient.
+
+Limitation:
+The search to find the timestamp messes with the jumplist; I do not want it to; will fix when I know how!
+Updating the timestamp is part of undo, thus you have to undo twice after a :w (Once to undo the timestamp and again to undo whatever it is you wanted to undo.)
+
+NOTE: v1.1 (initial; no longer available) had a FATAL boo boo in my attempt to
+get the timestamp updating out of undo. It changes undolevels to -1 (and then
+sets it back to what it was), this has the undesired effect of flushing your
+undo information for the file when ever you write. NOT at all what I had
+intended. If you use v1.1 now, please update to v1.2 ASAP. My sincere apologies
+for any work lost as the result of this bungle.
