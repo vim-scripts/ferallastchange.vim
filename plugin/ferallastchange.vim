@@ -3,22 +3,46 @@
 "	vim60:fdm=marker
 "
 "	\file		ferallastchange.vim
-"	\date		Sat, 05 Jul 2003 00:36 PDT
+"	\date		Thu, 28 Apr 2005 14:03 PST
 "
 "	\brief		Update the last modification time of the file if an appropriate
-"				string is found in the first 20 lines of the file. This is a
+"				string is found in the first 20 (default; see
+"				flastchangeMaxLines) lines of the file. This is a
 "				fork of Srinath Avadhanula's lastchange.vim.
 "	\note		This is VIMSCRIPT #680
-"				URL: http://vim.sourceforge.net/scripts/script.php?script_id=680
-"	\author		Robert KellyIV <Sreny@SverGbc.Pbz> (Rot13ed)
+"				URL: <URL:http://vim.sourceforge.net/scripts/script.php?script_id=680>
+"	\author		Robert KellyIV <sreny@srenyqernzf.pbz> (Rot13ed)
 "	\author		Srinath Avadhanula <srinath@fastmail.fm> (original work:
 "				lastchange.vim; dated Sat Mar 30 04:00 PM 2002 PST;
 "				VIMSCRIPT #259;
-"				URL: http://vim.sourceforge.net/script.php?script_id=259
+"				URL: <URL:http://vim.sourceforge.net/script.php?script_id=259>
 "	License:	I claim no copyright for MY changes;
-"	\version	$Id$
-"	Version:	1.2
+"	Version:	1.23
 "	History: {{{
+"	[Feral:118/05@13:53] 1.23
+"	Improved/Fixed cursor restore. Screen should not jump; ever.
+"	[Feral:100/05@19:24] 1.22
+"		I guess I'm stuck with undo; Good I guess.
+"		Fiddled with cursor/screen position save/restore. *should* be better.
+"			[Feral:118/05@12:54] Almost; It messes up by one line when second
+"			to top line in window wraps around screen.
+"	[Feral:048/05@10:49] 1.21
+"		Fiddled with cursor positioning; now uses "call cursor()". 'better'
+"
+"	BUG FOUND: Found aparent bug with search(); it does not find string on line 1;
+"		thus the string denoted by g:flastchangeleader must be on line 2 or
+"		greater for now. This is the same as it has been as far as I know.
+"
+"	Added:	flastchangeMaxLines (default 20) to let you specify how many lines
+"		maximum from the top of the file to consider searchable.
+"
+"		I.e.
+"			let g:flastchangeMaxLines = 20
+"		Is the same as the default; Which is the same as previous versions.
+"
+"		NOTE that a lower values does not improve speed nor efficiency, simply
+"			if the found search string is to be considered or not.
+"
 "	[Feral:185/03@23:48] 1.2
 "	Thanks to Asier for pointing out messing with undolevels is not at all
 "		what I had intended.
@@ -136,6 +160,18 @@ else
 endif
 " }}}
 
+" {{{ g:flastchangeMaxLines
+" If the global (presumably defined in .vimrc) flastchangeMaxLines is not
+"	defined we use a default value of 20; else use the global one.
+" This is the max number of lines to consider for flastchangeleader validity.
+" Set to 0 for no maximum.
+if !exists('g:flastchangeMaxLines')
+	let s:flastchangeMaxLines = 20
+else
+	let s:flastchangeMaxLines = g:flastchangeMaxLines
+endif
+" }}}
+
 function s:UpdateWithLastMod() " {{{
 	" If we cannot be modified; don't even try.
 	if !&modifiable
@@ -151,18 +187,46 @@ function s:UpdateWithLastMod() " {{{
 "		return
 "	end
 
-	" Save our current position.
-	let posL = line('.')
-	let posC = 'normal! '.virtcol('.').'|'
+	" Save where we are
+	" See: <URL:vimhelp:restore-position>
+
+	" save &scrolloff so H and zt do what we want.
+	let old_scrolloff = &scrolloff
+	let &scrolloff=0
+	let inner_line = line('.')
+	let inner_col = col('.')
+	normal! H
+	let upper_line = line('.')
+
+	call cursor(inner_line, inner_col)
+
+	let mess_with_folding = 0
+	if has('folding') && &foldenable
+		normal! zn
+		let mess_with_folding = 1
+	endif
+
+
+
+
+
 
 	" Goto the top of the file so we seach from there.
-	:0
+	:call cursor(1,1)
 	" search... (don't wrap around)
-	let retval = search(s:flastchangeleader, 'W')
+	let retval = search(s:flastchangeleader, 'W') "BUG:(As of 603): search() does not find string on line1;
 	" if the found line is in bounds (retval will be 0 if not found)
-	if retval > 0 && retval <= 20
+	let DoProcess = 0
+	if retval > 0
+		if s:flastchangeMaxLines == 0
+			let DoProcess = 1
+		elseif retval <= s:flastchangeMaxLines
+			let DoProcess = 1
+		end
+	end
+
+	if DoProcess > 0
 		let lastdate = matchstr(getline('.'), s:flastchangeleader.'\zs.*')
-"		echo lastdate."\n"
 		let newdate = strftime(s:flastchangetimeformat)
 		" if what we would write is different from what is there (aka enough
 		"	time has elapsed between writes) then write our new timestamp.
@@ -177,23 +241,41 @@ function s:UpdateWithLastMod() " {{{
 			"	what gets done.
 			let DaLine = substitute(getline(retval), s:flastchangeleader.'.*', s:flastchangeleader.newdate, '')
 			:call setline(retval, DaLine)
-
-"			" The idea is to not add this sub to the undo list; I don't think
-"			"	that is possible.
-"			exe 's/'.s:flastchangeleader.'.*/'.s:flastchangeleader.newdate.'/e'
-"			" Clean up history so the above :s does not show up.
-"			call histdel("/", -1)
 		end
 	end
 
+
+
 	"Replace the cursor to where we found it.
-	exe posL
-	exe posC
+"	:call cursor(posL,posC)
+
+"	" Return to where we were
+
+	if mess_with_folding
+		normal! zN
+	endif
+	call cursor(upper_line, inner_col)
+	normal! zt
+	call cursor(inner_line, inner_col)
+	let &scrolloff=old_scrolloff
 endfunction " }}}
 
 :augroup FeralLastChange " {{{
 	:autocmd!
-	:autocmd BufWritePre * :call <SID>UpdateWithLastMod()
+	if v:version >= 603
+" :keepjumps (new with vim6.3) -- Not 100% sure it is working, but then I'm
+" not 100% sure what it should be doing. If I understand it right, not
+" modifying the |changelist| is exactly what I want, i.e. we won't undo. At
+" least I think. This does not seem to be the case however.
+"autocmd BufWritePre,FileWritePre *.abc keepjumps call SetLastChange()
+" [Feral:206/04@16:16] Touch wiser; This does not effect undo, to my dismay,
+" and it looks like each :call needs a keepjumps. Learning, I still am. :)
+"		:autocmd BufWritePre,FileWritePre * keepjumps call <SID>UpdateWithLastMod()
+		:autocmd BufWritePre,FileWritePre * :lockmarks call <SID>UpdateWithLastMod()
+	else
+		:autocmd BufWritePre * :call <SID>UpdateWithLastMod()
+	endif
+
 :augroup END " }}}
 
 "command -nargs=0 NOMOD :let b:nomod = 1
